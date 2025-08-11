@@ -1,0 +1,676 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Kaiju Clash v2 — Semi-Working Prototype</title>
+<style>
+  :root{
+    --bg:#0b1020;--fg:#e8efff;--muted:#9fb3d4;
+    --card:#12172a;--panel:#0e1429;--border:#283355;
+    --accent:#66e0ff;--accent2:#b879ff;--good:#7aff9b;--bad:#ff6b7a;
+  }
+  *{box-sizing:border-box} html,body{height:100%;margin:0;background:var(--bg);color:var(--fg);font-family:Inter,system-ui,Segoe UI,Roboto,Arial,sans-serif}
+  .wrap{max-width:1200px;margin:0 auto;padding:12px}
+  .row{display:grid;grid-template-columns:2fr 1fr;gap:12px}
+  @media (max-width:980px){.row{grid-template-columns:1fr}}
+  .card{background:linear-gradient(180deg,var(--card),#0a0f24);border:1px solid var(--border);border-radius:16px;padding:12px;box-shadow:0 10px 30px rgba(0,0,0,.3)}
+  .title{font-weight:900;font-size:20px}
+  .muted{color:var(--muted)}
+  .btn{border:1px solid var(--border);background:#0f162f;color:var(--fg);padding:8px 12px;border-radius:12px;cursor:pointer}
+  .btn.primary{background:linear-gradient(135deg,var(--accent),var(--accent2));border:0;color:#001018;font-weight:800}
+  .btn:disabled{opacity:.6;cursor:not-allowed}
+  .grid{display:grid;gap:8px}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .hstack{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .space{height:6px}
+  .badge{border:1px solid var(--border);border-radius:999px;padding:2px 8px;font-size:12px}
+  .pill{background:#e8efff;color:#0a1020;border-radius:999px;padding:2px 8px;font-size:11px}
+  .progress{height:8px;border-radius:8px;background:#0b1330;border:1px solid var(--border);overflow:hidden}
+  .bar{height:100%;background:linear-gradient(90deg,var(--good),var(--accent))}
+  .cols3{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+  .cols6{display:grid;grid-template-columns:repeat(6,1fr);gap:6px}
+  .scroll{max-height:260px;overflow:auto}
+  .log{height:160px;overflow:auto;background:#081028;border:1px solid var(--border);border-radius:12px;padding:8px;font-size:12px}
+  .mini{font-size:12px}
+  .center{display:flex;justify-content:center}
+  .activeSlot{min-height:160px;border:1px dashed var(--border);border-radius:14px;padding:8px;background:#0a1024}
+  .benchSlot{min-height:120px;border:1px dashed var(--border);border-radius:14px;padding:6px;background:#0a1020}
+  .kc{background:#0f1530;border:1px solid var(--border);border-radius:12px;padding:8px}
+  .kv{font-weight:700}
+  .rowi{display:flex;gap:6px;align-items:center;justify-content:space-between}
+  .w50{width:50px;text-align:center}
+  .sep{height:1px;background:var(--border);margin:6px 0}
+  .storeGrid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  @media (max-width:700px){.storeGrid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="hstack" style="justify-content:space-between">
+    <div>
+      <div class="title">Kaiju Clash v2 — Semi-Working Prototype</div>
+      <div class="muted mini">1 Active + 5 Bench • Base/Mega/Ultra • W/R/Res • VP to 5 • Single & 5-Pack shop • Simple AI</div>
+    </div>
+    <div class="hstack">
+      <button id="btnReset" class="btn">Reset</button>
+      <button id="btnShop" class="btn">Store</button>
+      <span class="badge">Mode: <span id="modeLabel">Casual</span></span>
+      <button id="btnMode" class="btn">Toggle Ranked</button>
+    </div>
+  </div>
+
+  <div class="row">
+    <div class="grid">
+      <!-- Battle Board -->
+      <div class="card">
+        <div class="hstack" style="justify-content:space-between">
+          <div class="hstack"><b>Opponent</b> <span class="badge" id="aiVP">VP 0/5</span></div>
+          <div class="badge mini">Destroyed City — Map v2</div>
+        </div>
+        <div class="space"></div>
+        <div class="grid">
+          <!-- Opponent Active -->
+          <div class="activeSlot" id="aiActive"></div>
+          <!-- Opponent Bench -->
+          <div class="cols6" id="aiBench"></div>
+        </div>
+        <div class="sep"></div>
+        <div class="grid">
+          <!-- Your Bench -->
+          <div class="cols6" id="youBench"></div>
+          <!-- Your Active -->
+          <div class="activeSlot" id="youActive"></div>
+        </div>
+        <div class="space"></div>
+        <div class="hstack" style="justify-content:space-between">
+          <div class="hstack"><b>You</b> <span class="badge" id="youVP">VP 0/5</span></div>
+          <div class="hstack">
+            <span class="badge" id="phase">Draw</span>
+            <button id="btnNext" class="btn primary">Next Phase</button>
+            <button id="btnDraw" class="btn">Draw +1</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Hand & Actions -->
+      <div class="card">
+        <div class="rowi">
+          <b>Your Hand</b>
+          <span class="badge" id="handCount">0</span>
+        </div>
+        <div id="hand" class="scroll"></div>
+      </div>
+
+      <!-- Log -->
+      <div class="card">
+        <b>Log</b>
+        <div id="log" class="log"></div>
+      </div>
+    </div>
+
+    <!-- Right Panel -->
+    <div class="grid">
+      <!-- Quick Rules -->
+      <div class="card">
+        <div class="title">Quick Rules</div>
+        <ul class="mini muted">
+          <li>Goal: reach 5 VP by KO’ing enemy Kaiju (VP varies per card).</li>
+          <li>1 Active Kaiju + up to 5 on Bench.</li>
+          <li>Attach 1 Energy per turn; attacks need exact costs.</li>
+          <li>Evolve: Base → Mega → Ultra (must be in play 1 turn).</li>
+          <li>Weakness: ×2 dmg • Resistance: −20 dmg • Strength: +20% dmg.</li>
+          <li>First player cannot attack on turn 1.</li>
+        </ul>
+      </div>
+
+      <!-- Store -->
+      <div class="card" id="store" style="display:none">
+        <div class="title">Store</div>
+        <div class="hstack" style="justify-content:space-between">
+          <span class="badge">Coins: <span id="coins">500</span></span>
+          <span class="badge">Gems: <span id="gems">50</span></span>
+        </div>
+        <div class="space"></div>
+        <div class="storeGrid">
+          <div class="kc">
+            <div class="kv">Single Pack</div>
+            <div class="mini muted">5 cards • standard odds</div>
+            <div class="space"></div>
+            <div class="hstack">
+              <button id="buySingleCoins" class="btn">Buy (100 coins)</button>
+              <button id="buySingleGems" class="btn">Buy (1 gem)</button>
+            </div>
+          </div>
+          <div class="kc">
+            <div class="kv">5-Pack Bundle</div>
+            <div class="mini muted">25 cards • better odds • 1 guaranteed Rare+</div>
+            <div class="space"></div>
+            <div class="hstack">
+              <button id="buyBundleCoins" class="btn">Buy (450 coins)</button>
+              <button id="buyBundleGems" class="btn">Buy (5 gems)</button>
+            </div>
+          </div>
+        </div>
+        <div class="sep"></div>
+        <div id="packOutput" class="mini"></div>
+      </div>
+
+      <!-- Decklists -->
+      <div class="card">
+        <div class="title">Test Decks (v2)</div>
+        <div class="mini muted">Demo decks for quick play. Balance-leaning, not final.</div>
+        <div class="space"></div>
+        <div class="grid2">
+          <button id="loadEarthTech" class="btn">Load You: Earth/Tech</button>
+          <button id="loadAlienBio" class="btn">Load AI: Alien/Bio</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ===== Types & Data =====
+/** Energy Types: 'Alien','Earth','Tech','Bio','Nuclear','Universal' */
+// Weakness/Resistance/Strength mapping (symbols only; strength is offensive +20%)
+const TYPE = ['Alien','Earth','Tech','Bio','Nuclear','Universal'];
+
+function icon(t){
+  const map = {
+    Alien:'🛸', Earth:'🌋', Tech:'⚙️', Bio:'🧬', Nuclear:'☢️', Universal:'⭐'
+  }; return map[t]||'◼';
+}
+
+const WR = {
+  // Weak to, Resists, Strong vs (offense modifier)
+  Alien:   {weak:'Tech', resist:'Bio',  strong:'Bio'},
+  Earth:   {weak:'Bio',  resist:'Tech', strong:'Tech'},
+  Tech:    {weak:'Nuclear', resist:'Earth', strong:'Earth'},
+  Bio:     {weak:'Alien', resist:'Nuclear', strong:'Nuclear'},
+  Nuclear: {weak:'Earth', resist:'Alien', strong:'Alien'},
+  Neutral: {weak:'Nuclear', resist:null, strong:null},
+};
+
+// Card pool (trimmed for prototype). Attacks: {name, cost: [types], dmg, effect?}
+function K(ai){
+  return ai; // passthrough builder
+}
+const POOL = {
+  // === Earth/Tech (player demo) ===
+  Titanrex_Base: K({name:'Titanrex', form:'Base', faction:'Earth', hp:90, retreat:2, vp:1,
+    weak:WR.Earth.weak, resist:WR.Earth.resist,
+    attacks:[
+      {name:'Stone Slam', cost:['Earth'], dmg:40},
+      {name:'Seismic Roar', cost:['Earth','Universal'], dmg:60}
+    ]}),
+  Titanrex_Mega: K({name:'Titanrex Alpha', form:'Mega', evolvesFrom:'Titanrex', faction:'Earth', hp:160, retreat:3, vp:2,
+    weak:WR.Earth.weak, resist:WR.Earth.resist,
+    attacks:[
+      {name:'Quake Breaker', cost:['Earth','Earth'], dmg:90},
+      {name:'Earthshatter', cost:['Earth','Earth','Universal'], dmg:130}
+    ]}),
+  Titanrex_Ultra: K({name:'Titanrex Prime', form:'Ultra', evolvesFrom:'Titanrex Alpha', faction:'Earth', hp:230, retreat:4, vp:3,
+    weak:WR.Earth.weak, resist:WR.Earth.resist,
+    attacks:[
+      {name:'Cataclysm', cost:['Earth','Earth','Earth','Universal'], dmg:170},
+      {name:'Continental Rift', cost:['Earth','Earth','Earth','Universal','Universal'], dmg:210}
+    ]}),
+
+  Mechazor_Base: K({name:'Mechazor', form:'Base', faction:'Tech', hp:80, retreat:1, vp:1,
+    weak:WR.Tech.weak, resist:WR.Tech.resist,
+    attacks:[
+      {name:'Servo Punch', cost:['Tech'], dmg:30},
+      {name:'Overclock', cost:['Tech','Universal'], dmg:50}
+    ]}),
+  Mechazor_Mega: K({name:'Mechazor MK-II', form:'Mega', evolvesFrom:'Mechazor', faction:'Tech', hp:150, retreat:2, vp:2,
+    weak:WR.Tech.weak, resist:WR.Tech.resist,
+    attacks:[
+      {name:'Rail Barrage', cost:['Tech','Tech'], dmg:90},
+      {name:'Giga Cannon', cost:['Tech','Tech','Universal'], dmg:120}
+    ]}),
+  Mechazor_Ultra: K({name:'Mechazor Overlord', form:'Ultra', evolvesFrom:'Mechazor MK-II', faction:'Tech', hp:220, retreat:3, vp:3,
+    weak:WR.Tech.weak, resist:WR.Tech.resist,
+    attacks:[
+      {name:'Satellite Strike', cost:['Tech','Tech','Tech','Universal'], dmg:160},
+      {name:'Orbital Rain', cost:['Tech','Tech','Tech','Universal','Universal'], dmg:200}
+    ]}),
+
+  // === Alien/Bio (AI demo) ===
+  Voidra_Base: K({name:'Voidra', form:'Base', faction:'Alien', hp:70, retreat:1, vp:1,
+    weak:WR.Alien.weak, resist:WR.Alien.resist,
+    attacks:[
+      {name:'Claw Swipe', cost:['Alien'], dmg:40},
+      {name:'Pulse Ray', cost:['Alien','Universal'], dmg:60}
+    ]}),
+  Voidra_Mega: K({name:'Voidra Omega', form:'Mega', evolvesFrom:'Voidra', faction:'Alien', hp:160, retreat:2, vp:2,
+    weak:WR.Alien.weak, resist:WR.Alien.resist,
+    attacks:[
+      {name:'Void Slash', cost:['Alien','Alien'], dmg:100},
+      {name:'Dimensional Tear', cost:['Alien','Alien','Universal'], dmg:140}
+    ]}),
+  Voidra_Ultra: K({name:'Voidra Apex', form:'Ultra', evolvesFrom:'Voidra Omega', faction:'Alien', hp:240, retreat:3, vp:4,
+    weak:WR.Alien.weak, resist:WR.Alien.resist,
+    attacks:[
+      {name:'Oblivion Roar', cost:['Alien','Alien','Alien','Universal'], dmg:180},
+      {name:'Reality Rift', cost:['Alien','Alien','Alien','Universal','Universal'], dmg:220}
+    ]}),
+
+  Virethorn_Base: K({name:'Virethorn', form:'Base', faction:'Bio', hp:80, retreat:1, vp:1,
+    weak:WR.Bio.weak, resist:WR.Bio.resist,
+    attacks:[
+      {name:'Toxin Bite', cost:['Bio'], dmg:30},
+      {name:'Spine Volley', cost:['Bio','Universal'], dmg:60}
+    ]}),
+  Virethorn_Mega: K({name:'Virethorn Savage', form:'Mega', evolvesFrom:'Virethorn', faction:'Bio', hp:150, retreat:2, vp:2,
+    weak:WR.Bio.weak, resist:WR.Bio.resist,
+    attacks:[
+      {name:'Venom Flood', cost:['Bio','Bio'], dmg:90},
+      {name:'Leech Storm', cost:['Bio','Bio','Universal'], dmg:120}
+    ]}),
+  Virethorn_Ultra: K({name:'Virethorn Primeval', form:'Ultra', evolvesFrom:'Virethorn Savage', faction:'Bio', hp:220, retreat:3, vp:3,
+    weak:WR.Bio.weak, resist:WR.Bio.resist,
+    attacks:[
+      {name:'Jungle Maw', cost:['Bio','Bio','Universal'], dmg:150},
+      {name:'Rootquake', cost:['Bio','Bio','Bio','Universal'], dmg:190}
+    ]}),
+
+  // Legendary sample
+  Zerathion_Legendary: K({name:'Zerathion, Eternal Apex', form:'Legendary', faction:'Nuclear', hp:290, retreat:4, vp:5,
+    weak:null, resist:'Alien',
+    attacks:[
+      {name:'Singularity Strike', cost:['Nuclear','Alien','Universal','Universal'], dmg:220},
+      {name:'Worldbreaker', cost:['Nuclear','Nuclear','Alien','Universal','Universal'], dmg:240}
+    ]})
+};
+
+// Energy cards
+function energy(t){ return {kind:'Energy', type:t, name:`${t} Energy`}; }
+
+// Starter decks
+function deck_EarthTech(){
+  const d = [];
+  d.push(POOL.Titanrex_Base, POOL.Titanrex_Mega, POOL.Titanrex_Ultra);
+  d.push(POOL.Mechazor_Base, POOL.Mechazor_Mega, POOL.Mechazor_Ultra);
+  d.push(POOL.Titanrex_Base, POOL.Mechazor_Base);
+  for(let i=0;i<8;i++) d.push(energy('Earth'));
+  for(let i=0;i<8;i++) d.push(energy('Tech'));
+  for(let i=0;i<6;i++) d.push(energy('Universal'));
+  d.push(POOL.Zerathion_Legendary);
+  return shuffle(d);
+}
+function deck_AlienBio(){
+  const d = [];
+  d.push(POOL.Voidra_Base, POOL.Voidra_Mega, POOL.Voidra_Ultra);
+  d.push(POOL.Virethorn_Base, POOL.Virethorn_Mega, POOL.Virethorn_Ultra);
+  d.push(POOL.Voidra_Base, POOL.Virethorn_Base);
+  for(let i=0;i<8;i++) d.push(energy('Alien'));
+  for(let i=0;i<8;i++) d.push(energy('Bio'));
+  for(let i=0;i<6;i++) d.push(energy('Universal'));
+  return shuffle(d);
+}
+
+// ===== Utility =====
+function clone(x){ return JSON.parse(JSON.stringify(x)); }
+function shuffle(arr){
+  const a = arr.slice();
+  for(let i=a.length-1;i>0;i--){
+    const j = Math.floor(Math.random()*(i+1));
+    [a[i],a[j]]=[a[j],a[i]];
+  } return a;
+}
+function log(s){ state.log.push(s); renderLog(); }
+
+// Damage calc with W/R and Strength
+function calcDamage(attacker, defender, base){
+  let dmg = base;
+  const strong = WR[attacker.faction]?.strong;
+  if(strong && strong === defender.faction){ dmg = Math.round(dmg * 1.2); }
+  if(defender.weak && defender.weak === attacker.faction){ dmg = Math.round(dmg * 2); }
+  if(defender.resist && defender.resist === attacker.faction){ dmg = Math.max(0, dmg - 20); }
+  return dmg;
+}
+
+// ===== Game State =====
+const state = {
+  mode:'Casual',
+  coins:500, gems:50,
+  phase:'Draw',
+  you:null, ai:null,
+  firstTurn:true,
+  log:[],
+  winner:null,
+};
+
+function newPlayer(name, deckFn){
+  return {
+    name, deck:deckFn(), hand:[], bench:[], active:null, grave:[], vp:0, turnSincePlayed:{},
+    energyAttachUsed:false
+  };
+}
+
+function setup(){
+  state.you = newPlayer('You', deck_EarthTech);
+  state.ai  = newPlayer('AI',  deck_AlienBio);
+  draw(state.you,7); draw(state.ai,7);
+  autoStart(state.you); autoStart(state.ai);
+  state.phase='Draw'; state.firstTurn=true; state.winner=null; state.log=['New game.'];
+  renderAll();
+}
+
+function draw(p,n){ for(let i=0;i<n;i++){ const c=p.deck.shift(); if(c) p.hand.push(clone(c)); } }
+
+function autoStart(p){
+  const idx = p.hand.findIndex(c=>c.form==='Base');
+  if(idx>=0){ const k = p.hand.splice(idx,1)[0]; playToActive(p, k); }
+  for(let i=0;i<5 && p.bench.length<2;i++){
+    const j = p.hand.findIndex(c=>c.form==='Base');
+    if(j>=0){ const k = p.hand.splice(j,1)[0]; playToBench(p, k); }
+  }
+}
+
+function playToActive(p, card){
+  if(card.kind==='Energy') return;
+  const inst = clone(card); inst.currentHP = card.hp; inst.attached = [];
+  p.active = inst;
+  p.turnSincePlayed[inst.name]=0;
+  log(`${p.name} sets Active: ${inst.name} (${inst.form})`);
+}
+function playToBench(p, card){
+  if(p.bench.length>=5) { log(`${p.name} bench is full.`); return; }
+  const inst = clone(card); inst.currentHP = card.hp; inst.attached = [];
+  p.bench.push(inst);
+  p.turnSincePlayed[inst.name]=0;
+  log(`${p.name} benches ${inst.name} (${inst.form})`);
+}
+
+// Evolution (must be in play 1 turn)
+function canEvolve(baseName, next){
+  if(!next.evolvesFrom) return false;
+  return baseName === next.evolvesFrom;
+}
+
+function endTurn(){
+  [state.you, state.ai].forEach(p=>{
+    Object.keys(p.turnSincePlayed).forEach(k=>p.turnSincePlayed[k]++);
+    p.energyAttachUsed=false;
+  });
+  state.firstTurn=false;
+  aiTurn();
+}
+
+function attachEnergy(p, target, energyCardIdx){
+  if(p.energyAttachUsed) { log(`${p.name} already attached Energy this turn.`); return; }
+  const card = p.hand[energyCardIdx];
+  if(!card || card.kind!=='Energy') return;
+  target.attached.push(card.type);
+  p.hand.splice(energyCardIdx,1);
+  p.energyAttachUsed=true;
+  log(`${p.name} attaches ${card.type} Energy to ${target.name}.`);
+  renderAll();
+}
+
+function hasEnergyFor(att, costs){
+  const pool = att.attached.slice().sort();
+  const need = costs.slice().sort();
+  const use = pool.slice();
+  for(const c of need){
+    let i = use.indexOf(c);
+    if(i<0){
+      i = use.indexOf('Universal');
+      if(i<0) return false;
+    }
+    use.splice(i,1);
+  }
+  return true;
+}
+
+// Attack action
+function attack(p, opp, attackIndex){
+  const a = p.active;
+  if(!a) return;
+  if(state.firstTurn && p===state.you){ log(`You can't attack on turn 1.`); return; }
+  const atk = a.attacks[attackIndex];
+  if(!atk) return;
+  if(!hasEnergyFor(a, atk.cost)){ log(`${p.name}'s ${a.name} lacks energy for ${atk.name}.`); return; }
+  if(!opp.active){ log(`${opp.name} has no Active Kaiju.`); return; }
+  const dmg = calcDamage(a, opp.active, atk.dmg);
+  opp.active.currentHP -= dmg;
+  log(`${p.name}'s ${a.name} uses ${atk.name} for ${dmg} damage.`);
+  if(opp.active.currentHP <= 0){
+    const vp = opp.active.vp || 1;
+    p.vp += vp;
+    log(`${opp.active.name} is KO'd. ${p.name} gains ${vp} VP.`);
+    opp.grave.push(opp.active);
+    opp.active = null;
+    if(opp.bench.length>0){
+      opp.active = opp.bench.shift();
+      log(`${opp.name} promotes ${opp.active.name} to Active.`);
+    }
+    checkWin();
+  }
+  renderAll();
+}
+
+function retreat(p){
+  if(!p.active) return;
+  if(p.bench.length===0){ log(`${p.name} has no bench to retreat to.`); return; }
+  const cost = p.active.retreat || 0;
+  let paid=0;
+  for(let i=p.active.attached.length-1; i>=0 && paid<cost; i--){
+    p.active.attached.splice(i,1); paid++;
+  }
+  if(paid < cost){ log(`${p.name} lacks energy to retreat.`); return; }
+  const next = p.bench.shift();
+  p.bench.push(p.active);
+  p.active = next;
+  log(`${p.name} retreats. ${p.active.name} is now Active.`);
+  renderAll();
+}
+
+function evolveFromHand(p, handIdx, target){
+  const evo = p.hand[handIdx];
+  if(!evo || evo.kind==='Energy') return;
+  if(!canEvolve(target.name, evo)) { log(`Cannot evolve ${target.name} into ${evo.name} yet.`); return; }
+  if(p.turnSincePlayed[target.name] < 1){ log(`${target.name} must be in play 1 turn before evolving.`); return; }
+  const newK = JSON.parse(JSON.stringify(evo));
+  newK.currentHP = Math.min(newK.hp, target.currentHP + (newK.hp - target.hp)); newK.attached = target.attached.slice();
+  if(p.active && p.active===target){ p.active = newK; }
+  else{
+    const i = p.bench.indexOf(target);
+    if(i>=0) p.bench[i] = newK;
+  }
+  p.hand.splice(handIdx,1);
+  p.turnSincePlayed[newK.name]=0;
+  log(`${p.name} evolves ${target.name} into ${newK.name}.`);
+  renderAll();
+}
+
+function checkWin(){
+  if(state.you.vp>=5){ state.winner='You'; log('🏆 You win!'); }
+  if(state.ai.vp>=5){ state.winner='AI'; log('💀 You lose.'); }
+}
+
+function aiTurn(){
+  const me = state.ai, opp = state.you;
+  draw(me,1);
+  if(me.active){
+    const eidx = me.hand.findIndex(c=>c.kind==='Energy');
+    if(eidx>=0 && !me.energyAttachUsed) attachEnergy(me, me.active, eidx);
+  }
+  const evoIdx = me.hand.findIndex(c => c.form==='Mega' || c.form==='Ultra');
+  if(evoIdx>=0){
+    if(me.active && canEvolve(me.active.name, me.hand[evoIdx]) && me.turnSincePlayed[me.active.name]>=1){
+      evolveFromHand(me, evoIdx, me.active);
+    } else {
+      for(const b of me.bench){
+        if(canEvolve(b.name, me.hand[evoIdx]) && me.turnSincePlayed[b.name]>=1){
+          evolveFromHand(me, evoIdx, b); break;
+        }
+      }
+    }
+  }
+  if(me.active){
+    const idx = me.active.attacks.findIndex(atk => hasEnergyFor(me.active, atk.cost));
+    if(idx>=0) attack(me, opp, idx);
+  }
+  if(me.active && me.active.currentHP <= (me.active.hp/3) && me.bench.length>0){
+    retreat(me);
+  }
+  renderAll();
+}
+
+// ===== Render =====
+function renderAll(){
+  renderBoard();
+  renderHand();
+  renderLog();
+  document.getElementById('youVP').textContent = `VP ${state.you.vp}/5`;
+  document.getElementById('aiVP').textContent  = `VP ${state.ai.vp}/5`;
+  document.getElementById('phase').textContent = state.phase;
+  document.getElementById('modeLabel').textContent = state.mode;
+  document.getElementById('coins').textContent = state.coins;
+  document.getElementById('gems').textContent  = state.gems;
+}
+function cardView(k, small=false){
+  if(!k) return '<div class="muted mini">Empty</div>';
+  const hp = `<span class="badge">HP ${k.currentHP||k.hp}/${k.hp}</span>`;
+  const wr = `<span class="badge">W: ${k.weak?icon(k.weak):'—'} ×2</span> <span class="badge">R: ${k.resist?icon(k.resist):'—'} −20</span>`;
+  const vp = `<span class="badge">VP ${k.vp||1}</span>`;
+  const en = k.attached? `<span class="badge">Energy ${k.attached.length}</span>` : '';
+  const top = `<div class="rowi"><div><b>${k.name}</b> <span class="pill">${k.form}</span> <span class="pill">${icon(k.faction)} ${k.faction}</span></div><div class="hstack">${hp} ${vp}</div></div>`;
+  if(small) return `<div class="kc">${top}<div class="mini muted">${wr}</div></div>`;
+  const attacks = (k.attacks||[]).map((a,i)=>{
+    const cost = a.cost.map(icon).join('');
+    return `<div class="rowi mini"><div><b>${a.name}</b> ${cost}</div><div>${a.dmg}</div></div>`;
+  }).join('');
+  return `<div class="kc">${top}<div class="mini muted">${wr} <span class="badge">Retreat ${k.retreat||0}</span> ${en}</div><div class="sep"></div>${attacks}</div>`;
+}
+function renderBoard(){
+  document.getElementById('aiActive').innerHTML = cardView(state.ai.active);
+  document.getElementById('youActive').innerHTML = cardView(state.you.active);
+  const ab = document.getElementById('aiBench'); ab.innerHTML = state.ai.bench.map(b=>`<div class="benchSlot">${cardView(b,true)}</div>`).join('');
+  const yb = document.getElementById('youBench'); yb.innerHTML = state.you.bench.map((b,bi)=>{
+    return `<div class="benchSlot">${cardView(b,true)}
+      <div class="hstack mini">
+        <button class="btn" onclick="promote(${bi})">Promote</button>
+        <button class="btn" onclick="retreat()">Retreat</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+function renderHand(){
+  const el = document.getElementById('hand'); el.innerHTML='';
+  document.getElementById('handCount').textContent = state.you.hand.length;
+  state.you.hand.forEach((c, i)=>{
+    if(c.kind==='Energy'){
+      el.innerHTML += `<div class="kc"><div class="rowi"><div><b>${c.name}</b> <span class="pill">${icon(c.type)} ${c.type}</span></div><button class="btn" onclick="attachEnergy(state.you, state.you.active, ${i})">Attach to Active</button></div></div>`;
+    }else{
+      el.innerHTML += `<div class="kc">
+        ${cardView(c)}
+        <div class="hstack mini">
+          <button class="btn" onclick="playToBench(state.you, state.you.hand.splice(${i},1)[0]); renderAll();">Play to Bench</button>
+          <button class="btn" onclick="tryEvolve(${i})">Evolve Active</button>
+          <button class="btn" onclick="tryEvolveBench(${i})">Evolve Bench</button>
+        </div>
+      </div>`;
+    }
+  });
+}
+function renderLog(){
+  const l = document.getElementById('log');
+  l.innerHTML = state.log.map(x=>`<div>${x}</div>`).join('');
+  l.scrollTop = l.scrollHeight;
+}
+
+// Helpers for UI
+function promote(bi){
+  if(!state.you.bench[bi]) return;
+  const old = state.you.active;
+  state.you.active = state.you.bench.splice(bi,1)[0];
+  if(old) state.you.bench.unshift(old);
+  log(`You promote ${state.you.active.name} to Active.`);
+  renderAll();
+}
+function tryEvolve(i){
+  const ev = state.you.hand[i];
+  if(!state.you.active) return;
+  evolveFromHand(state.you, i, state.you.active);
+}
+function tryEvolveBench(i){
+  const ev = state.you.hand[i];
+  for(const b of state.you.bench){
+    if(canEvolve(b.name, ev) && state.you.turnSincePlayed[b.name]>=1){
+      evolveFromHand(state.you, i, b); return;
+    }
+  }
+  log('No valid bench target to evolve.');
+}
+
+// ===== UI Events =====
+document.getElementById('btnReset').onclick = setup;
+document.getElementById('btnShop').onclick = ()=>{
+  const s = document.getElementById('store');
+  s.style.display = (s.style.display==='none') ? 'block' : 'none';
+};
+document.getElementById('btnMode').onclick = ()=>{
+  state.mode = (state.mode==='Casual') ? 'Ranked' : 'Casual';
+  renderAll();
+};
+document.getElementById('btnNext').onclick = ()=>{
+  const order = ['Draw','Main','Attack','End'];
+  const i = order.indexOf(state.phase);
+  const cur = order[i];
+  if(cur==='Draw'){ draw(state.you,1); log('You draw 1.'); }
+  if(cur==='Attack'){
+    const a = state.you.active;
+    if(a){
+      const choice = prompt(`Choose attack index (0..${a.attacks.length-1})`);
+      const idx = parseInt(choice||'-1',10);
+      if(!isNaN(idx) && idx>=0) attack(state.you, state.ai, idx);
+    }
+  }
+  if(cur==='End'){ endTurn(); }
+  state.phase = order[(i+1)%order.length];
+  renderAll();
+};
+document.getElementById('btnDraw').onclick = ()=>{ draw(state.you,1); log('You draw 1.'); renderAll(); };
+document.getElementById('loadEarthTech').onclick = ()=>{ state.you = newPlayer('You', deck_EarthTech); draw(state.you,7); autoStart(state.you); renderAll(); };
+document.getElementById('loadAlienBio').onclick = ()=>{ state.ai = newPlayer('AI', deck_AlienBio); draw(state.ai,7); autoStart(state.ai); renderAll(); };
+
+// Store actions
+function openPack(n=1){
+  const ids = Object.keys(POOL);
+  let output = '';
+  for(let p=0;p<n;p++){
+    const pulls = [];
+    for(let i=0;i<5;i++){
+      const id = ids[Math.floor(Math.random()*ids.length)];
+      pulls.push(POOL[id].name + ' [' + (POOL[id].form||'Energy') + ']');
+    }
+    output += `<div>Pack ${p+1}: ${pulls.join(', ')}</div>`;
+  }
+  document.getElementById('packOutput').innerHTML = output;
+}
+document.getElementById('buySingleCoins').onclick = ()=>{
+  if(state.coins<100){ log('Not enough coins.'); return; }
+  state.coins -= 100; openPack(1); renderAll();
+};
+document.getElementById('buySingleGems').onclick = ()=>{
+  if(state.gems<1){ log('Not enough gems.'); return; }
+  state.gems -= 1; openPack(1); renderAll();
+};
+document.getElementById('buyBundleCoins').onclick = ()=>{
+  if(state.coins<450){ log('Not enough coins.'); return; }
+  state.coins -= 450; openPack(5); renderAll();
+};
+document.getElementById('buyBundleGems').onclick = ()=>{
+  if(state.gems<5){ log('Not enough gems.'); return; }
+  state.gems -= 5; openPack(5); renderAll();
+};
+
+// Start game
+setup();
+</script>
+</body>
+</html>
